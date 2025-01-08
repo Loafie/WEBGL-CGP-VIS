@@ -1,0 +1,312 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Cartesian Genetic Epilepsy Machine</title>
+  <style>
+    body {
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      height: 100vh;
+      margin: 0;
+      background-color: #000000;
+    }
+    .canvas-grid {
+      display: grid;
+      grid-template-columns: repeat(3, 300px);
+      grid-gap: 10px; /* Adjust spacing between canvases */
+    }
+    canvas {
+      border: 1px solid #000;
+    }
+  </style>
+</head>
+<body>
+<script type="module">
+    import {CGP, defaultFuncs} from "./CGP.js"
+    const glContexts = []
+    let theCGPs = []
+    const programs = []
+    let initialized = false
+    const standardCGP = () => {return new CGP(10, 3, 5, 10, 30, defaultFuncs.length, defaultFuncs)}
+    const currentLevels = [0.0, 0.0]
+    const maxLevels = [0.0, 0.0]
+    const audioVec = [0.0, 0.0]
+    let recentBPMs = [] 
+    let probableBPM = 120.0
+    let sampleCount = 0
+    let samples = []
+    const calcBPM = (sTm) => {
+
+        const findMostCommon = () => {
+            const bins = Array(202).fill(0);
+            for (let i = 0; i < recentBPMs.length; i++) {
+                bins[Math.floor((recentBPMs[i] - 100) * 2.0)] += 1.0
+            }
+            let largest = 0 
+            for (let i = 0; i < 202; i++) {
+                if (bins[i] > bins[largest]) {
+                    largest = i
+                }
+            }
+            return (largest / 2.0) + 100
+        }
+        const upper = Math.floor((60 / 102) * 4 * (sRate / 128))
+        const lower = Math.ceil(upper / 2)
+        let topScore = 0.0
+        let topScorer = 0
+        for (let i = lower; i < upper; i++) {
+            let score = 0.0
+            for (let j = 0; j < 3000 - i; j++) {
+                score += sTm[j] * sTm[j +i]
+            }
+            if (score > topScore) {
+                topScore = score
+                topScorer = i
+            }
+        }
+        probableBPM = (60 * 4 * sRate) / (topScorer * 128)
+        recentBPMs.push(probableBPM)
+        if (recentBPMs.length > 20) {recentBPMs.shift()}
+        probableBPM = findMostCommon()
+    }
+
+    for (let i = 0; i < 9; i++) {
+        const canvas = document.getElementById("cnv" + i);
+        const thegl = canvas.getContext('webgl');
+        if (!thegl) {
+            console.error("WebGL not supported");
+        }
+        glContexts.push(thegl)
+        const theCGP = standardCGP()
+        theCGPs.push(theCGP)
+        const theProgram = getProgram(thegl, theCGP)
+        programs.push(theProgram)
+        setupGLContext(thegl, theProgram, canvas.width, canvas.height)
+        render(thegl, theProgram)
+    }
+    initialized = true
+    function getProgram(gl, theCGP) {
+        function createShader(gl, type, source) {
+            const shader = gl.createShader(type);
+            gl.shaderSource(shader, source);
+            gl.compileShader(shader);
+
+            if (!gl.getShaderParameter(shader, gl.COMPILE_STATUS)) {
+                console.error(gl.getShaderInfoLog(shader));
+                gl.deleteShader(shader);
+                return null;
+            }
+
+            return shader;
+        }
+
+        function createProgram(gl, vertexShaderSource, fragmentShaderSource) {
+            const vertexShader = createShader(gl, gl.VERTEX_SHADER, vertexShaderSource);
+            const fragmentShader = createShader(gl, gl.FRAGMENT_SHADER, fragmentShaderSource);
+
+            const program = gl.createProgram();
+            gl.attachShader(program, vertexShader);
+            gl.attachShader(program, fragmentShader);
+            gl.linkProgram(program);
+
+            if (!gl.getProgramParameter(program, gl.LINK_STATUS)) {
+                console.error(gl.getProgramInfoLog(program));
+                gl.deleteProgram(program);
+                return null;
+            }
+
+            return program;
+        }
+
+        const colors = theCGP.glslString()
+
+        const cgpFuncs = `
+            const float PI = 3.1415926535897932384626433832795;
+            uniform float time;
+            uniform float interval;
+            uniform vec2 audio;
+            float fn1(float in1, float in2) {return (in1 + in2) / 2.0;}
+            float fn2(float in1, float in2) {return (in1 - in2) / 2.0;}
+            float fn3(float in1, float in2) {return (in1 * in2) / 2.0;}
+            float fn4(float in1, float in2) {if (in1 > in2) {return 1.0;} else {return -1.0;}}
+            float fn5(float in1) {return sin(2.0 * PI * in1);}
+            float fn6(float in1) {return 1.0 / (1.0 + exp(-1.0 * in1));}
+        `
+        const vertexShaderSource = `
+            attribute vec2 a_position;
+            varying vec2 v_uv;
+            void main() {v_uv = a_position;gl_Position = vec4(a_position, 0.0, 1.0);}`;
+        const fragmentShaderSource = `precision mediump float;` + cgpFuncs + `
+            varying vec2 v_uv;
+            void main() {
+                float in1 = v_uv.x;
+                float in2 = v_uv.y;
+                float in3 = (pow(in1, 2.0) + pow(in2, 2.0)) / sqrt(2.0);
+                float in4 = -1.0;
+                float in5 = 0.0;
+                float in6 = audio[0];
+                float in7 = audio[1];
+                float in8 = sin(2.0 * PI * mod(time, (2.0 * interval)) / (2.0 * interval));
+                float in9 = sin(2.0 * PI * mod(time, (4.0 * interval)) / (4.0 * interval));
+                float in10 = sin(2.0 * PI * mod(time, (16.0 * interval)) / (16.0 * interval));
+
+                float red = ${colors[0]};
+                float green = ${colors[1]};
+                float blue = ${colors[2]};
+                gl_FragColor = vec4(red, green, blue, 1.0);
+            }`;
+        return createProgram(gl, vertexShaderSource, fragmentShaderSource);
+    }
+
+    function setupGLContext(gl, program, width, height) {
+        const positionBuffer = gl.createBuffer();
+        gl.bindBuffer(gl.ARRAY_BUFFER, positionBuffer);
+        gl.bufferData(
+        gl.ARRAY_BUFFER,
+        new Float32Array([
+            -1, -1,  // Bottom-left
+            1, -1,   // Bottom-right
+            -1, 1,   // Top-left
+            -1, 1,   // Top-left
+            1, -1,   // Bottom-right
+            1, 1     // Top-right
+        ]),
+        gl.STATIC_DRAW
+        );
+
+
+        const positionAttributeLocation = gl.getAttribLocation(program, "a_position");
+        gl.enableVertexAttribArray(positionAttributeLocation);
+        gl.vertexAttribPointer(positionAttributeLocation, 2, gl.FLOAT, false, 0, 0);
+        gl.viewport(0, 0, width, height);
+        gl.clearColor(0, 0, 0, 1);
+        gl.useProgram(program);
+    }
+    function render(gl, program) {
+        gl.clear(gl.COLOR_BUFFER_BIT);
+        const timeUniformLocation = gl.getUniformLocation(program, "time");
+        gl.uniform1f(timeUniformLocation, performance.now());
+        const intervalUniformLocation = gl.getUniformLocation(program, "interval");
+        gl.uniform1f(intervalUniformLocation, 60000.0 / probableBPM);
+        const audioUniformLocation = gl.getUniformLocation(program, "audio");
+        gl.uniform2f(audioUniformLocation, audioVec[0], audioVec[1]);
+
+        gl.drawArrays(gl.TRIANGLES, 0, 6);
+    }
+    function renderAll() {
+        if (initialized) {
+            for (let i = 0; i < 9; i++) {
+                analyser.getByteFrequencyData(frequencyData);
+
+                currentLevels[0] = frequencyData.slice(1, 5).reduce((acc, num) => acc + num, 0)
+                if (currentLevels[0] > maxLevels[0]) {
+                    maxLevels[0] = currentLevels[0]
+                }
+                else
+                {
+                    maxLevels[0] = maxLevels[0] * 0.99
+                }
+                audioVec[0] = (maxLevels[0] != 0.0 ? currentLevels[0] / maxLevels[0] : 0.0)
+
+                currentLevels[1] = frequencyData.slice(42, 97).reduce((acc, num) => acc + num, 0)
+                if (currentLevels[1] > maxLevels[1]) {
+                    maxLevels[1] = currentLevels[1]
+                }
+                else
+                {
+                    maxLevels[1] = maxLevels[1] * 0.99
+                }
+                audioVec[1] = (maxLevels[1] != 0.0 ? currentLevels[1] / maxLevels[1] : 0.0)
+
+                render(glContexts[i], programs[i])
+            }
+        }
+        requestAnimationFrame(renderAll)
+    }
+    export const handleClick = (x) => {
+        if (initialized) {
+        initialized = false
+        const newCGPs = []
+        for (let i = 0; i < 9; i++) {
+            const aCGP = standardCGP()
+            aCGP.copyFromOther(theCGPs[x])
+            aCGP.mutate(0.02)
+            newCGPs.push(aCGP)
+        }
+        theCGPs = newCGPs;
+        for (let i = 0; i < 9; i++) {
+            programs[i] = getProgram(glContexts[i], theCGPs[i])
+            glContexts[i].useProgram(programs[i]);
+        }
+        initialized = true
+        }
+    };
+
+    const audioContext = new (window.AudioContext || window.webkitAudioContext)();
+    const sRate = audioContext.sampleRate;
+
+    // Set up the AnalyserNode
+    const analyser = audioContext.createAnalyser();
+    analyser.fftSize = 1024; // Set FFT size (number of frequency bins)
+    const bufferLength = analyser.frequencyBinCount; // Number of frequency bins
+
+    // Create a buffer to hold the frequency data
+    const frequencyData = new Uint8Array(bufferLength);
+
+    // Get audio input (microphone or other input device)
+    navigator.mediaDevices.getUserMedia({ audio: true })
+        .then(stream => {
+            audioContext.audioWorklet.addModule('processor.js').then(() => {
+                const source = audioContext.createMediaStreamSource(stream);
+                source.connect(analyser); // Connect input to analyser nod
+                const audioWorkletNode = new AudioWorkletNode(audioContext, 'raw-audio-processor');
+                const lowPassFilter = audioContext.createBiquadFilter();
+                lowPassFilter.type = 'lowpass'; // Set the filter type
+                lowPassFilter.frequency.value = 250; // Set the cutoff frequency (e.g., 1000 Hz)
+                lowPassFilter.Q.value = 10; // Set the quality factor (adjust as needed)
+
+                // Step 4: Connect nodes
+                source.connect(lowPassFilter);
+
+
+                source.connect(audioWorkletNode);
+                audioWorkletNode.connect(audioContext.destination); 
+
+
+                audioWorkletNode.port.onmessage = (event) => {
+                    const sample = event.data;
+                    samples.push(sample)
+                    sampleCount += 1
+                    if (sampleCount == 3000) {
+                        sampleCount = 0
+                        const samplesToMeasure = samples
+                        samples = []
+                        calcBPM(samplesToMeasure)
+                    }
+                };
+            });
+        })
+        .catch(error => {
+            console.error("Error accessing audio input:", error);
+        }); 
+
+    window.handleClick = handleClick
+    renderAll()
+
+</script>
+  <div class="canvas-grid">
+    <canvas id="cnv0" width="300" height="300" onclick="handleClick(0)"></canvas>
+    <canvas id="cnv1" width="300" height="300" onclick="handleClick(1)"></canvas>
+    <canvas id="cnv2" width="300" height="300" onclick="handleClick(2)"></canvas>
+    <canvas id="cnv3" width="300" height="300" onclick="handleClick(3)"></canvas>
+    <canvas id="cnv4" width="300" height="300" onclick="handleClick(4)"></canvas>
+    <canvas id="cnv5" width="300" height="300" onclick="handleClick(5)"></canvas>
+    <canvas id="cnv6" width="300" height="300" onclick="handleClick(6)"></canvas>
+    <canvas id="cnv7" width="300" height="300" onclick="handleClick(7)"></canvas>
+    <canvas id="cnv8" width="300" height="300" onclick="handleClick(8)"></canvas>
+  </div>
+</body>
+</html>
