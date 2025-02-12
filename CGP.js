@@ -1,16 +1,41 @@
 export class CGP {
-    constructor(inputs, outputs, colsBack, rows, cols, numFuncs, funcs) { //new
+    constructor(inputs, outputs, colsBack, rows, cols, numConsts, numFuncs, funcs) { //new
         this.inputs = inputs;
         this.outputs = outputs;
         this.colsBack = colsBack;
+        this.numConsts = numConsts
         this.rows = rows;
         this.cols = cols;
         this.numFuncs = numFuncs;
         this.funcs = funcs;
+        this.constants = this.initializeRandomConstants()
         this.nodes = this.initializeRandomNodes()
         this.outputNodes = this.initializeRandomOutputs()
         this.activeNodes = this.getActiveNodes()
         this.activeNodeCount = this.countActiveNodes()
+    }
+
+    fromSerialization(s) {
+        this.inputs = s.inputs;
+        this.outputs = s.outputs;
+        this.colsBack = s.colsBack;
+        this.numConsts = s.numConsts;
+        this.rows = s.rows;
+        this.cols = s.cols;
+        this.numFuncs = s.funcs;
+        this.constants = s.constants;
+        this.nodes = s.nodes;
+        this.outputNodes = s.outputNodes;
+        this.activeNodes = s.activeNodes;
+        this.activeNodeCount = s.activeNodeCount;
+    }
+
+    initializeRandomConstants() {
+        const result = []
+        for (let i = 0; i < this.numConsts; i++) {
+            result.push((Math.random() * 2.0) - 1.0)
+        }
+        return result
     }
 
     glslString() {
@@ -23,8 +48,12 @@ export class CGP {
                 }
                 return result + ")"
             }
-            else {
+            else if (idx >= -1.0 * this.inputs){
                 return "in" + (idx + this.inputs + 1)
+            }
+            else
+            {
+                return (this.constants[idx + this.inputs + this.numConsts].toFixed(4))
             }
         }
         const results = []
@@ -41,7 +70,9 @@ export class CGP {
             colsBack: this.colsBack,
             rows: this.rows,
             cols: this.cols,
+            numConsts: this.numConsts,
             numFuncs: this.numFuncs,
+            constants: this.constants,
             nodes: this.nodes,
             outputNodes: this.outputNodes,
             activeNodes: this.activeNodes,
@@ -61,7 +92,13 @@ export class CGP {
                     }
                     else
                     {
-                        inputs.push(input[this.nodes[i][0][j] + this.inputs])
+                        if (this.nodes[i][0][j] >= (this.inputs * -1)) {
+                            inputs.push(input[this.nodes[i][0][j] + this.inputs])
+                        }
+                        else
+                        {
+                            inputs.push(input[this.nodes[i][0][j] + this.inputs + this.numConsts])
+                        }
                     } 
                 }
                 vals.push(this.funcs[this.nodes[i][1]][0](inputs))
@@ -140,7 +177,7 @@ export class CGP {
 
     getRangeBack(index) {
         const max = (index - (index % this.rows) - 1)
-        const min = (max - (this.colsBack * this.rows) + 1) > (-1 * this.inputs) ? (max - (this.colsBack * this.rows) + 1) : (-1 * this.inputs)
+        const min = (max - (this.colsBack * this.rows) + 1) > (-1 * (this.inputs + this.numConsts)) ? (max - (this.colsBack * this.rows) + 1) : (-1 * (this.inputs + this.numConsts))
         return [max, min]
     }
 
@@ -166,6 +203,14 @@ export class CGP {
             return newOuts
         }
 
+        const copyConsts = (constants) => {
+            const newConsts = []
+            for (let i = 0; i < constants.length; i++) {
+                newConsts.push(constants[i])
+            }
+            return newConsts
+        }
+
         this.inputs = other.inputs;
         this.outputs = other.outputs;
         this.colsBack = other.colsBack;
@@ -176,10 +221,21 @@ export class CGP {
         this.nodes = copyNodes(other.nodes)
         this.outputNodes = copyOuts(other.outputNodes)
         this.activeNodes = this.getActiveNodes()
+        this.constants = copyConsts(other.constants)
         this.activeNodeCount = this.countActiveNodes()
     }
 
     mutate(rate) {
+
+        function randomNormal(mean = 0, stdDev = 1) {
+            let u = 0, v = 0;
+            while (u === 0) u = Math.random(); // Avoid 0 to prevent division by zero
+            while (v === 0) v = Math.random();
+            const z = Math.sqrt(-2.0 * Math.log(u)) * Math.cos(2.0 * Math.PI * v);
+            return z * stdDev + mean; // Scale by stdDev and shift by mean
+        }
+
+
         const randin = (range) => {
             const min = range[1]
             const max = range[0]
@@ -212,6 +268,11 @@ export class CGP {
                 this.outputNodes[i] = Math.floor(Math.random() * this.cols * this.rows)
             }
         }
+        let newConsts = []
+        for(let i = 0; i < this.numConsts; i++) {
+            newConsts.push(Math.min(1.0, Math.max(this.constants[i] + randomNormal(0,0.05), -1.0)))
+        }
+        this.constants = newConsts
         this.activeNodes = this.getActiveNodes()
         this.activeNodeCount = this.countActiveNodes()
     }
@@ -222,9 +283,6 @@ export const defaultFuncs = [
     [(ins) => {return (ins[0] + ins[1]) / 2.0}, 2],
     [(ins) => {return (ins[0] - ins[1]) / 2.0}, 2],
     [(ins) => {return (ins[0] * ins[1]) / 2.0}, 2],
-    //[(ins) => {return 1.0}, 0],
-    //[(ins) => {return 0.0}, 0],
-    //[(ins) => {return -1.0}, 0],
     [(ins) => {return ins[0] > ins[1] ? 1.0 : -1.0}, 2],
     [(ins) => {return Math.sin(2.0 * Math.PI * ins[0])}, 1],
     [(ins) => {return 1 / (1.0 + Math.exp(-ins[0]))}, 1]

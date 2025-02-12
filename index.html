@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Cartesian Genetic Epilepsy Machine</title>
-  <style>
+  <style id="style"> 
     body {
       display: flex;
       justify-content: center;
@@ -13,24 +13,36 @@
       margin: 0;
       background-color: #000000;
     }
+    .container {
+      display: grid;
+      grid-template-columns: repeat(3, 300px);
+      grid-gap: 10px;
+      position: relative;
+    }
     .canvas-grid {
       display: grid;
       grid-template-columns: repeat(3, 300px);
-      grid-gap: 10px; /* Adjust spacing between canvases */
+      grid-gap: 10px; 
     }
     canvas {
       border: 1px solid #000;
     }
-  </style>
+    #overlayCanvas {
+      grid-column: span 3; 
+      grid-row: span 3; 
+      z-index: 2; 
+      pointer-events: none; 
+    }
+  </style> 
 </head>
 <body>
 <script type="module">
     import {CGP, defaultFuncs} from "./CGP.js"
-    const glContexts = []
+    let glContexts = []
     let theCGPs = []
-    const programs = []
+    let programs = []
     let initialized = false
-    const standardCGP = () => {return new CGP(10, 3, 5, 10, 30, defaultFuncs.length, defaultFuncs)}
+    const standardCGP = () => {return new CGP(8, 3, 5, 10, 30, 4, defaultFuncs.length, defaultFuncs)}
     const currentLevels = [0.0, 0.0]
     const maxLevels = [0.0, 0.0]
     const audioVec = [0.0, 0.0]
@@ -38,6 +50,179 @@
     let probableBPM = 120.0
     let sampleCount = 0
     let samples = []
+    let fullGLcontext = null
+    let fullProg = null
+    let renderMode = 'Nine'
+    let savedCGPs = []
+
+
+    const drawOverlay = (cnv) => {
+
+        const drawTriangle = (x, y, size, color, flip=false) => {
+            let sz = size
+            if (flip) {sz = size * -1}
+            ctx.beginPath();
+            ctx.moveTo(x, y - sz / Math.sqrt(3));
+            ctx.lineTo(x - sz / 2, y + sz / (2 * Math.sqrt(3)));
+            ctx.lineTo(x + sz / 2, y + sz / (2 * Math.sqrt(3)));
+            ctx.closePath();
+            ctx.fillStyle = color;
+            ctx.fill();
+        }
+
+        const ctx = cnv.getContext("2d");
+        const w = cnv.width
+        const h = cnv.height
+        ctx.clearRect(0, 0, event.target.width, event.target.height);
+        ctx.fillStyle = "rgba(255, 255, 255, 0.5)"
+        ctx.fillRect(35 * (w / 40.0), 1 * (h / 40.0), 4 * (w / 40.0), 4 * (h / 40.0));
+        ctx.clearRect(36 * (w / 40.0), 2 * (h / 40.0), 2 * (w / 40.0), 2 * (h / 40.0));
+
+
+        for (let x = 1; x < 10; x++) {
+
+            const loadColorA = "rgba(255, 255, 255, 0.5)"
+            const loadColorI = "rgba(255, 255, 255, 0.2)"
+            const saveColorA = "rgba(127, 127, 255, 0.5)"
+            const saveColorI = "rgba(127, 127, 255, 0.2)"
+
+            drawTriangle(x * w/10, h * (7/8), w/12, (savedCGPs[x - 1] != null) ? loadColorA : loadColorI)
+            drawTriangle(x * w/10, h * (15/16), w/12, (savedCGPs[x - 1] != null) ? saveColorA : saveColorI, true)
+
+        }
+
+    }
+
+    const drawOverlayOne = (cnv) => {
+        const ctx = cnv.getContext("2d");
+        ctx.fillStyle = "rgba(255, 255, 255, 0.5)"
+        ctx.fillRect(35 * (cnv.width / 40.0), 1 * (cnv.height / 40.0), 4 * (cnv.width / 40.0), 4 * (cnv.height / 40.0));
+        ctx.clearRect(36 * (cnv.width / 40.0), 2 * (cnv.height / 40.0), 2 * (cnv.width / 40.0), 2 * (cnv.height / 40.0));
+    }
+
+
+    const saveState = (n, k) => {
+        savedCGPs[n] = theCGPs[k].serialize()
+        localStorage.setItem("savedCGPs", JSON.stringify(savedCGPs));
+
+    }
+
+    const loadState = (n, k) => {
+        if (initialized) {
+            initialized = false
+            theCGPs[k].fromSerialization(savedCGPs[n])
+            programs[k] = getProgram(glContexts[k], theCGPs[k])
+            glContexts[k].useProgram(programs[k]);
+            initialized = true
+        }
+        //stop animation
+        //replace CGP
+        //generate program
+        //bind program to context
+        //restart view
+    }
+
+
+    const clickNine = (event) => {
+        const w = event.target.width
+        const h = event.target.height
+
+        const x = event.layerX
+        const y = event.layerY
+
+        const dw = w / 40.0
+        const dh = h / 40.0
+
+        if (x >= 35 * dw && x <= 39 * dw && y >= 1 * dh && y <= 5 * dh) {
+            gofullScreenX(parseInt(event.target.id.replace("oc","")))
+        }
+        else if ( x >= w * (7/120) && x <= w * (113/120) && y >= h * (5/6) && y <= h * (47/48) ){
+            let save = false
+            let bank = 0
+            if (y >= h * (11/12)) {save = true}
+            bank = Math.floor((x - w * (7/120)) / (w/10))
+            if (save) {
+                saveState(bank, parseInt(event.target.id.replace("oc","")))
+                drawOverlay(event.target)
+             } else {
+                if (savedCGPs[bank] != null) {
+                    loadState(bank, parseInt(event.target.id.replace("oc","")))
+                }
+             }
+
+        }
+        else {
+            mutateX(parseInt(event.target.id.replace("oc","")))
+        }
+
+    }
+
+    const clickOne = (event) => {
+        const w = event.target.width
+        const h = event.target.height
+
+        const x = event.layerX
+        const y = event.layerY
+
+        const dw = w / 40.0
+        const dh = h / 40.0
+
+        if (x >= 35 * dw && x <= 39 * dw && y >= 1 * dh && y <= 5 * dh) {
+           returnFromFullScreen()
+        }
+        else {
+
+        }
+
+    }
+
+    const mouseoverOne = (event) => {
+        drawOverlayOne(event.target)
+    }
+    const mouseoutOne = (event) => {
+        const ctx = event.target.getContext("2d");
+        ctx.clearRect(0, 0, event.target.width, event.target.height);
+    }
+
+    const mouseoverNine = (event) => {
+        drawOverlay(event.target)
+    }
+    const mouseoutNine = (event) => {
+        const ctx = event.target.getContext("2d");
+        ctx.clearRect(0, 0, event.target.width, event.target.height);
+    }
+
+    //Create the HTML body for the 9 tiles displays
+    const setUpMainDisplayNine = () => {
+        const bodycont = document.getElementById('body_container');
+        bodycont.innerHTML = '<div class="container" id="main_display"></div>'
+        const dis = document.getElementById('main_display');
+        dis.innerHTML = '\n<div class="canvas-grid" id="cnv-grd"></div>\n';
+        const grid = document.getElementById('cnv-grd');
+
+        for(let i = 0; i < 9; i++) {
+            grid.innerHTML += '\n<div style="position: relative;"><canvas id="cnv' + i.toString() + '" width="300" height="300"></canvas><canvas id="oc' + i.toString() + '" width="300" height="300" style="position: absolute; top: 0; left: 0;"></canvas></div>\n'
+        }
+        for(let i = 0; i < 9; i++) {
+            const theCanv = document.getElementById("oc" + i.toString())
+            theCanv.addEventListener("mouseover", mouseoverNine)
+            theCanv.addEventListener("mouseout", mouseoutNine)
+            theCanv.addEventListener("click", clickNine)
+        }
+
+    }
+
+    const setUpMainDisplayOne = () => {
+        const bodycont = document.getElementById('body_container');
+        bodycont.innerHTML = '\n<div style="position: relative;"><canvas id="cnv-single" width="900" height="900"></canvas><canvas id="oc-single" width="900" height="900" style="position: absolute; top: 0; left: 0;"></canvas></div>\n'
+        const theCanv = document.getElementById("oc-single")
+        theCanv.addEventListener("mouseover", mouseoverOne)
+        theCanv.addEventListener("mouseout", mouseoutOne)
+        theCanv.addEventListener("click", clickOne)
+
+    }
+
+
     const calcBPM = (sTm) => {
 
         const findMostCommon = () => {
@@ -73,21 +258,47 @@
         probableBPM = findMostCommon()
     }
 
-    for (let i = 0; i < 9; i++) {
-        const canvas = document.getElementById("cnv" + i);
+    const initializeRandomCGPs = () => {
+        for (let i = 0; i < 9; i++) {
+            const theCGP = standardCGP()
+            theCGPs.push(theCGP)
+        }
+    }
+
+
+    const mapCGPtoWebGLContextSingle = (num) => {
+        const canvas = document.getElementById("cnv-single");
         const thegl = canvas.getContext('webgl');
         if (!thegl) {
             console.error("WebGL not supported");
         }
-        glContexts.push(thegl)
-        const theCGP = standardCGP()
-        theCGPs.push(theCGP)
+        fullGLcontext = thegl
+        const theCGP = theCGPs[num]
         const theProgram = getProgram(thegl, theCGP)
-        programs.push(theProgram)
+        fullProg = theProgram
         setupGLContext(thegl, theProgram, canvas.width, canvas.height)
-        render(thegl, theProgram)
+        initialized = true
     }
-    initialized = true
+
+
+    const mapCGPsToWebGLContextandStartRender = () => {
+        glContexts = []
+        programs = []
+        for (let i = 0; i < 9; i++) {
+            const canvas = document.getElementById("cnv" + i);
+            const thegl = canvas.getContext('webgl');
+            if (!thegl) {
+                console.error("WebGL not supported");
+            }
+            glContexts.push(thegl)
+            const theCGP = theCGPs[i]
+            const theProgram = getProgram(thegl, theCGP)
+            programs.push(theProgram)
+            setupGLContext(thegl, theProgram, canvas.width, canvas.height)
+        }
+        initialized = true
+    }
+
     function getProgram(gl, theCGP) {
         function createShader(gl, type, source) {
             const shader = gl.createShader(type);
@@ -145,13 +356,11 @@
                 float in1 = v_uv.x;
                 float in2 = v_uv.y;
                 float in3 = (pow(in1, 2.0) + pow(in2, 2.0)) / sqrt(2.0);
-                float in4 = -1.0;
-                float in5 = 0.0;
-                float in6 = audio[0];
-                float in7 = audio[1];
-                float in8 = sin(2.0 * PI * mod(time, (2.0 * interval)) / (2.0 * interval));
-                float in9 = sin(2.0 * PI * mod(time, (4.0 * interval)) / (4.0 * interval));
-                float in10 = sin(2.0 * PI * mod(time, (16.0 * interval)) / (16.0 * interval));
+                float in4 = audio[0];
+                float in5 = audio[1];
+                float in6 = sin(2.0 * PI * mod(time, (2.0 * interval)) / (2.0 * interval));
+                float in7 = sin(2.0 * PI * mod(time, (4.0 * interval)) / (4.0 * interval));
+                float in8 = sin(2.0 * PI * mod(time, (16.0 * interval)) / (16.0 * interval));
 
                 float red = ${colors[0]};
                 float green = ${colors[1]};
@@ -196,54 +405,87 @@
 
         gl.drawArrays(gl.TRIANGLES, 0, 6);
     }
-    function renderAll() {
+
+    const updateAudioVec = () => {
+        analyser.getByteFrequencyData(frequencyData);
+
+        currentLevels[0] = frequencyData.slice(1, 5).reduce((acc, num) => acc + num, 0)
+        if (currentLevels[0] > maxLevels[0]) {
+            maxLevels[0] = currentLevels[0]
+        }
+        else
+        {
+            maxLevels[0] = maxLevels[0] * 0.99
+        }
+        audioVec[0] = (maxLevels[0] != 0.0 ? currentLevels[0] / maxLevels[0] : 0.0)
+
+        currentLevels[1] = frequencyData.slice(42, 97).reduce((acc, num) => acc + num, 0)
+        if (currentLevels[1] > maxLevels[1]) {
+            maxLevels[1] = currentLevels[1]
+        }
+        else
+        {
+            maxLevels[1] = maxLevels[1] * 0.99
+        }
+        audioVec[1] = (maxLevels[1] != 0.0 ? currentLevels[1] / maxLevels[1] : 0.0)
+    }
+
+    function renderNine() {
         if (initialized) {
+            updateAudioVec()
             for (let i = 0; i < 9; i++) {
-                analyser.getByteFrequencyData(frequencyData);
-
-                currentLevels[0] = frequencyData.slice(1, 5).reduce((acc, num) => acc + num, 0)
-                if (currentLevels[0] > maxLevels[0]) {
-                    maxLevels[0] = currentLevels[0]
-                }
-                else
-                {
-                    maxLevels[0] = maxLevels[0] * 0.99
-                }
-                audioVec[0] = (maxLevels[0] != 0.0 ? currentLevels[0] / maxLevels[0] : 0.0)
-
-                currentLevels[1] = frequencyData.slice(42, 97).reduce((acc, num) => acc + num, 0)
-                if (currentLevels[1] > maxLevels[1]) {
-                    maxLevels[1] = currentLevels[1]
-                }
-                else
-                {
-                    maxLevels[1] = maxLevels[1] * 0.99
-                }
-                audioVec[1] = (maxLevels[1] != 0.0 ? currentLevels[1] / maxLevels[1] : 0.0)
-
                 render(glContexts[i], programs[i])
             }
         }
-        requestAnimationFrame(renderAll)
+        if (renderMode == 'Nine') {
+            requestAnimationFrame(renderNine)
+        }
     }
-    export const handleClick = (x) => {
+
+    function renderOne() {
         if (initialized) {
+            updateAudioVec()
+            render(fullGLcontext, fullProg)
+        }
+        if (renderMode == 'One') {
+            requestAnimationFrame(renderOne)
+        }
+    }
+    const mutateX = (x) => {
+        if (initialized) {
+            initialized = false
+            const newCGPs = []
+            for (let i = 0; i < 9; i++) {
+                const aCGP = standardCGP()
+                aCGP.copyFromOther(theCGPs[x])
+                aCGP.mutate(0.02)
+                newCGPs.push(aCGP)
+            }
+            theCGPs = newCGPs;
+            for (let i = 0; i < 9; i++) {
+                programs[i] = getProgram(glContexts[i], theCGPs[i])
+                glContexts[i].useProgram(programs[i]);
+            }
+            initialized = true
+        }
+    }
+    const gofullScreenX = (x) => {
         initialized = false
-        const newCGPs = []
-        for (let i = 0; i < 9; i++) {
-            const aCGP = standardCGP()
-            aCGP.copyFromOther(theCGPs[x])
-            aCGP.mutate(0.02)
-            newCGPs.push(aCGP)
-        }
-        theCGPs = newCGPs;
-        for (let i = 0; i < 9; i++) {
-            programs[i] = getProgram(glContexts[i], theCGPs[i])
-            glContexts[i].useProgram(programs[i]);
-        }
+        renderMode = "One"
+        setUpMainDisplayOne()
+        mapCGPtoWebGLContextSingle(x)
         initialized = true
-        }
-    };
+        renderOne()       
+    }
+
+    const returnFromFullScreen = () => {
+        initialized = false
+        renderMode = "Nine"
+        setUpMainDisplayNine()
+        mapCGPsToWebGLContextandStartRender()
+        initialized = true
+        renderNine()
+    }
 
     const audioContext = new (window.AudioContext || window.webkitAudioContext)();
     const sRate = audioContext.sampleRate;
@@ -291,22 +533,21 @@
         })
         .catch(error => {
             console.error("Error accessing audio input:", error);
-        }); 
-
-    window.handleClick = handleClick
-    renderAll()
-
+        });
+        
+    if ("savedCGPs" in localStorage) {
+        savedCGPs = JSON.parse(localStorage.getItem("savedCGPs"));
+    } else {
+        savedCGPs = [null, null, null, null, null, null, null, null, null]
+        localStorage.setItem("savedCGPs", JSON.stringify(savedCGPs));
+    }
+    
+    setUpMainDisplayNine()
+    initializeRandomCGPs()
+    mapCGPsToWebGLContextandStartRender()
+    renderNine()
+    
 </script>
-  <div class="canvas-grid">
-    <canvas id="cnv0" width="300" height="300" onclick="handleClick(0)"></canvas>
-    <canvas id="cnv1" width="300" height="300" onclick="handleClick(1)"></canvas>
-    <canvas id="cnv2" width="300" height="300" onclick="handleClick(2)"></canvas>
-    <canvas id="cnv3" width="300" height="300" onclick="handleClick(3)"></canvas>
-    <canvas id="cnv4" width="300" height="300" onclick="handleClick(4)"></canvas>
-    <canvas id="cnv5" width="300" height="300" onclick="handleClick(5)"></canvas>
-    <canvas id="cnv6" width="300" height="300" onclick="handleClick(6)"></canvas>
-    <canvas id="cnv7" width="300" height="300" onclick="handleClick(7)"></canvas>
-    <canvas id="cnv8" width="300" height="300" onclick="handleClick(8)"></canvas>
-  </div>
+<div id="body_container"></div>
 </body>
 </html>
