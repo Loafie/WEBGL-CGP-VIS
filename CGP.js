@@ -285,5 +285,6 @@ export const defaultFuncs = [
     [(ins) => {return (ins[0] * ins[1]) / 2.0}, 2],
     [(ins) => {return ins[0] > ins[1] ? 1.0 : -1.0}, 2],
     [(ins) => {return Math.sin(2.0 * Math.PI * ins[0])}, 1],
+    [(ins) => {return Math.sin(2.0 * Math.PI * ins[0] * (1.0 / (1.001 - (ins[1]*ins[1]))))}, 2],
     [(ins) => {return 1 / (1.0 + Math.exp(-ins[0]))}, 1]
 ]

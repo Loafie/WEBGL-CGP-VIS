@@ -13,6 +13,11 @@
       margin: 0;
       background-color: #000000;
     }
+    .main-wrapper {
+        display: flex;
+        align-items: top;
+        gap: 10px; /* Space between main container and new container */
+    }
     .container {
       display: grid;
       grid-template-columns: repeat(3, 300px);
@@ -32,6 +37,14 @@
       grid-row: span 3; 
       z-index: 2; 
       pointer-events: none; 
+    }
+    .sidebar {
+        width: 200px;
+        height: 100%;
+        background-color: #000000;
+        color: white;
+        align-items: center;
+        justify-content: center;
     }
   </style> 
 </head>
@@ -55,8 +68,150 @@
     let renderMode = 'Nine'
     let savedCGPs = []
 
+    const drawSave = (cnv) => {
+        const c = "rgba(64, 64, 64, 1.0)";
+        const ctx = cnv.getContext("2d");
+        const w = cnv.width
+        const h = cnv.height
+        ctx.fillStyle = c;
+        ctx.fillRect(0,0,w,h)
+        ctx.clearRect(0 + w * 0.03, 0 + h * 0.03, w * 0.94, h * 0.94)
+        ctx.beginPath();
+        ctx.arc(w / 2, h / 2, w * 0.125, 0, Math.PI * 2);
+        ctx.strokeStyle = c;             // line color
+        ctx.lineWidth = w * 0.03;                     // line thickness
+        ctx.stroke();
+
+        ctx.beginPath();
+        ctx.arc(w / 2, h / 2 + h * 0.25, w * 0.05, 0, Math.PI * 2);
+        ctx.fillStyle = c;
+        ctx.fill()
+
+        ctx.beginPath();
+        ctx.arc(w / 2, h / 2 + h * 0.375, w * 0.05, 0, Math.PI * 2);
+        ctx.fillStyle = c;
+        ctx.fill()
+
+        ctx.fillStyle = c;
+        ctx.fillRect(w / 2 - w * 0.05, h / 2 + h * 0.25, w * 0.1, h * 0.125)
+
+        ctx.fillStyle = "rgba(64, 64, 128, 1.0)";
+        ctx.fillRect(w * 0.1, h * 0.1, w * 0.15, h * 0.16)
+
+        ctx.beginPath()
+        ctx.moveTo(w * 0.06, h * 0.25)
+        ctx.lineTo(w * 0.29, h * 0.25)
+        ctx.lineTo(w * 0.175, h * 0.4)
+        ctx.closePath()
+        ctx.fill()
+    }
+
+    const drawLoad = (cnv) => {
+        const c = "rgba(64, 64, 64, 1.0)";
+        const ctx = cnv.getContext("2d");
+        const w = cnv.width
+        const h = cnv.height
+        ctx.fillStyle = c;
+        ctx.fillRect(0,0,w,h)
+        ctx.clearRect(0 + w * 0.03, 0 + h * 0.03, w * 0.94, h * 0.94)
+        ctx.beginPath();
+        ctx.arc(w / 2, h / 2, w * 0.125, 0, Math.PI * 2);
+        ctx.strokeStyle = c;             // line color
+        ctx.lineWidth = w * 0.03;                     // line thickness
+        ctx.stroke();
+
+        ctx.beginPath();
+        ctx.arc(w / 2, h / 2 + h * 0.25, w * 0.05, 0, Math.PI * 2);
+        ctx.fillStyle = c;
+        ctx.fill()
+
+        ctx.beginPath();
+        ctx.arc(w / 2, h / 2 + h * 0.375, w * 0.05, 0, Math.PI * 2);
+        ctx.fillStyle = c;
+        ctx.fill()
+
+        ctx.fillStyle = c;
+        ctx.fillRect(w / 2 - w * 0.05, h / 2 + h * 0.25, w * 0.1, h * 0.125)
+
+        ctx.fillStyle = "rgba(128, 64, 64, 1.0)";
+        ctx.fillRect(w * 0.1, h * 0.24, w * 0.15, h * 0.16)
+
+        ctx.beginPath()
+        ctx.moveTo(w * 0.06, h * 0.25)
+        ctx.lineTo(w * 0.29, h * 0.25)
+        ctx.lineTo(w * 0.175, h * 0.1)
+        ctx.closePath()
+        ctx.fill()
+    }
+
+    const drawRefresh = (cnv) => {
+        const c = "rgba(64, 64, 64, 1.0)";
+        const ctx = cnv.getContext("2d");
+        const unit = cnv.width / 6.0
+        const x = cnv.width / 2.0
+        const y = cnv.height / 2.0
+        const w = cnv.width
+        const h = cnv.height
+        const rad = 2 * unit
+        const innerrad = 1.5 * unit
+        ctx.fillStyle = c;
+        ctx.fillRect(0,0,w,h)
+        ctx.clearRect(0 + w * 0.03, 0 + h * 0.03, w * 0.94, h * 0.94)
+        ctx.fillStyle = "rgba(64, 128, 64, 1.0)"
+        ctx.beginPath();
+        ctx.arc(x, y, rad, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.fillStyle = "rgba(64, 128, 64, 1.0)"
+        ctx.globalCompositeOperation = "destination-out";
+        ctx.beginPath();
+        ctx.arc(x, y, innerrad, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.beginPath();
+        ctx.moveTo(x,y);
+        ctx.lineTo(x + rad, y)
+        ctx.lineTo(x + rad, y - rad)
+        ctx.closePath()
+        ctx.fill();
+        ctx.globalCompositeOperation = "source-over";
+        ctx.fillStyle = "rgba(64, 128, 64, 1.0)"
+        ctx.beginPath();
+        ctx.moveTo(x + (unit / Math.sqrt(2)) , y - (unit / Math.sqrt(2)));
+        ctx.lineTo(x + 2.5 * (unit / Math.sqrt(2)), y - 2.5 * (unit / Math.sqrt(2)))
+        ctx.lineTo(x + 2.75 * (unit / Math.sqrt(2)), y - 0.75 * (unit / Math.sqrt(2)))
+        ctx.closePath()
+        ctx.fill()
+    }
+
 
     const drawOverlay = (cnv) => {
+
+        const drawRefresh = (x, y, unit) => {
+            const rad = 2 * unit
+            const innerrad = 1.5 * unit
+            ctx.fillStyle = "rgba(255, 255, 255, 0.35)"
+            ctx.beginPath();
+            ctx.arc(x, y, rad, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.fillStyle = "rgba(255, 255, 255, 1.0)"
+            ctx.globalCompositeOperation = "destination-out";
+            ctx.beginPath();
+            ctx.arc(x, y, innerrad, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.beginPath();
+            ctx.moveTo(x,y);
+            ctx.lineTo(x + rad, y)
+            ctx.lineTo(x + rad, y - rad)
+            ctx.closePath()
+            ctx.fill();
+            ctx.globalCompositeOperation = "source-over";
+            ctx.fillStyle = "rgba(255, 255, 255, 0.35)"
+            ctx.beginPath();
+            ctx.moveTo(x + (unit / Math.sqrt(2)) , y - (unit / Math.sqrt(2)));
+            ctx.lineTo(x + 2.5 * (unit / Math.sqrt(2)), y - 2.5 * (unit / Math.sqrt(2)))
+            ctx.lineTo(x + 2.75 * (unit / Math.sqrt(2)), y - 0.75 * (unit / Math.sqrt(2)))
+            ctx.closePath()
+            ctx.fill()
+        }
 
         const drawTriangle = (x, y, size, color, flip=false) => {
             let sz = size
@@ -74,9 +229,9 @@
         const w = cnv.width
         const h = cnv.height
         ctx.clearRect(0, 0, event.target.width, event.target.height);
-        ctx.fillStyle = "rgba(255, 255, 255, 0.5)"
+        ctx.fillStyle = "rgba(255, 255, 255, 0.35)"
         ctx.fillRect(35 * (w / 40.0), 1 * (h / 40.0), 4 * (w / 40.0), 4 * (h / 40.0));
-        ctx.clearRect(36 * (w / 40.0), 2 * (h / 40.0), 2 * (w / 40.0), 2 * (h / 40.0));
+        ctx.clearRect(35.5 * (w / 40.0), 1.5 * (h / 40.0), 3 * (w / 40.0), 3 * (h / 40.0));
 
 
         for (let x = 1; x < 10; x++) {
@@ -90,20 +245,34 @@
             drawTriangle(x * w/10, h * (15/16), w/12, (savedCGPs[x - 1] != null) ? saveColorA : saveColorI, true)
 
         }
+        drawRefresh(3 * (w / 40.0), 3 * (h / 40.0), w / 40.0)
 
     }
 
     const drawOverlayOne = (cnv) => {
         const ctx = cnv.getContext("2d");
         ctx.fillStyle = "rgba(255, 255, 255, 0.5)"
-        ctx.fillRect(35 * (cnv.width / 40.0), 1 * (cnv.height / 40.0), 4 * (cnv.width / 40.0), 4 * (cnv.height / 40.0));
-        ctx.clearRect(36 * (cnv.width / 40.0), 2 * (cnv.height / 40.0), 2 * (cnv.width / 40.0), 2 * (cnv.height / 40.0));
+        ctx.fillRect(38 * (cnv.width / 40.0), 1 * (cnv.height / 40.0), 1.5* (cnv.width / 40.0), 0.25 * (cnv.height / 40.0));
     }
 
 
     const saveState = (n, k) => {
         savedCGPs[n] = theCGPs[k].serialize()
         localStorage.setItem("savedCGPs", JSON.stringify(savedCGPs));
+
+    }
+
+    const ranomdizeAll = () => {
+        if(initialized) {
+            initialized = false
+            for (let x = 0; x < 9; x++) {
+                theCGPs[x] = standardCGP()
+                programs[x] = getProgram(glContexts[x], theCGPs[x])
+                glContexts[x].useProgram(programs[x]);
+
+            }
+            initialized = true
+        }
 
     }
 
@@ -120,6 +289,16 @@
         //generate program
         //bind program to context
         //restart view
+    }
+
+    const newRandom = (k) => {
+        if (initialized) {
+            theCGPs[k] = standardCGP()
+            programs[k] = getProgram(glContexts[k], theCGPs[k])
+            glContexts[k].useProgram(programs[k]);
+            initialized = true
+        }
+
     }
 
 
@@ -151,6 +330,9 @@
              }
 
         }
+        else if (x >= 1 * dw && x <= 5 * dw && y >= 1 * dh && y <= 5 * dh) {
+            newRandom(parseInt(event.target.id.replace("oc","")))
+        }
         else {
             mutateX(parseInt(event.target.id.replace("oc","")))
         }
@@ -167,7 +349,7 @@
         const dw = w / 40.0
         const dh = h / 40.0
 
-        if (x >= 35 * dw && x <= 39 * dw && y >= 1 * dh && y <= 5 * dh) {
+        if (x >= 38 * dw && x <= 39.5 * dw && y >= 0.75 * dh && y <= 1.5 * dh) {
            returnFromFullScreen()
         }
         else {
@@ -191,17 +373,69 @@
         const ctx = event.target.getContext("2d");
         ctx.clearRect(0, 0, event.target.width, event.target.height);
     }
+    const testSerialize = () => {
+        const downloadStringAsFile = (content, filename, mimeType = "text/plain")  => {
+            const blob = new Blob([content], { type: mimeType });
+            const url = URL.createObjectURL(blob);
+
+            const a = document.createElement("a");
+            a.style.display = "none"; // Optional, just in case
+            a.href = url;
+            a.download = filename;
+            a.click();
+
+            URL.revokeObjectURL(url);
+        }
+        const CGPSerials = []
+        for (let x = 0; x < 9; x++) {
+            CGPSerials.push(theCGPs[x].serialize())
+        }
+        downloadStringAsFile(JSON.stringify(CGPSerials),"cgp.dat")
+    }
+
+    const getFile = (callback) => {
+        const input = document.createElement('input');
+        input.style.display = "none"
+        input.type = 'file';
+        input.accept = '.dat'; // optional: limit file types e.g. '.txt, .json'
+
+        input.onchange = () => {
+            const file = input.files[0];
+            if (!file) return;
+
+            const reader = new FileReader();
+            reader.onload = () => callback(reader.result);
+            reader.onerror = (err) => console.error("File read error:", err);
+
+            reader.readAsText(file); // or .readAsArrayBuffer, .readAsDataURL
+        };
+
+        // Trigger the file dialog
+        input.click();
+    }
+
 
     //Create the HTML body for the 9 tiles displays
     const setUpMainDisplayNine = () => {
         const bodycont = document.getElementById('body_container');
-        bodycont.innerHTML = '<div class="container" id="main_display"></div>'
+        bodycont.innerHTML = '<div class="main-wrapper" id="wrapper"></div>'
+        const wrap = document.getElementById('wrapper');
+        wrap.innerHTML = '<div class="container" id="main_display"></div><div class="sidebar"><canvas id="saveCanvas" style="margin-bottom: 5px; cursor: pointer;" width="50" height="50"></canvas><br><canvas id="loadCanvas" style="margin-bottom: 5px; cursor: pointer;" width="50" height="50"></canvas><br><canvas id="refreshCanvas" style="margin-bottom: 5px; cursor: pointer;" width="50" height="50"></canvas></div>'
         const dis = document.getElementById('main_display');
         dis.innerHTML = '\n<div class="canvas-grid" id="cnv-grd"></div>\n';
         const grid = document.getElementById('cnv-grd');
+        const saveCanvas = document.getElementById("saveCanvas")
+        saveCanvas.addEventListener("click", testSerialize)
+        drawSave(saveCanvas)
+        const loadCanvas = document.getElementById("loadCanvas")
+        loadCanvas.addEventListener("click", () => {getFile((contents) => {console.log(contents)})})
+        drawLoad(loadCanvas)
+        const refreshCanvas = document.getElementById("refreshCanvas")
+        refreshCanvas.addEventListener("click", ranomdizeAll)
+        drawRefresh(refreshCanvas)
 
         for(let i = 0; i < 9; i++) {
-            grid.innerHTML += '\n<div style="position: relative;"><canvas id="cnv' + i.toString() + '" width="300" height="300"></canvas><canvas id="oc' + i.toString() + '" width="300" height="300" style="position: absolute; top: 0; left: 0;"></canvas></div>\n'
+            grid.innerHTML += '\n<div style="position: relative;"><canvas id="cnv' + i.toString() + '" width="300" height="300"></canvas><canvas id="oc' + i.toString() + '" width="300" height="300" style="position: absolute; top: 0; left: 0; cursor: pointer;"></canvas></div>\n'
         }
         for(let i = 0; i < 9; i++) {
             const theCanv = document.getElementById("oc" + i.toString())
@@ -344,7 +578,8 @@
             float fn3(float in1, float in2) {return (in1 * in2) / 2.0;}
             float fn4(float in1, float in2) {if (in1 > in2) {return 1.0;} else {return -1.0;}}
             float fn5(float in1) {return sin(2.0 * PI * in1);}
-            float fn6(float in1) {return 1.0 / (1.0 + exp(-1.0 * in1));}
+            float fn6(float in1, float in2) {return sin(2.0 * PI * in1 * (1.0 / (1.001 - (in2 * in2))));}
+            float fn7(float in1) {return 1.0 / (1.0 + exp(-1.0 * in1));}
         `
         const vertexShaderSource = `
             attribute vec2 a_position;
