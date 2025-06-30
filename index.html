@@ -74,8 +74,8 @@
         ctx.clearRect(0 + w * 0.03, 0 + h * 0.03, w * 0.94, h * 0.94)
         ctx.beginPath()
         ctx.arc(w / 2, h / 2, w * 0.125, 0, Math.PI * 2)
-        ctx.strokeStyle = c             // line color
-        ctx.lineWidth = w * 0.03                   // line thickness
+        ctx.strokeStyle = c
+        ctx.lineWidth = w * 0.03
         ctx.stroke()
 
         ctx.beginPath()
@@ -112,8 +112,8 @@
         ctx.clearRect(0 + w * 0.03, 0 + h * 0.03, w * 0.94, h * 0.94)
         ctx.beginPath()
         ctx.arc(w / 2, h / 2, w * 0.125, 0, Math.PI * 2)
-        ctx.strokeStyle = c;            // line color
-        ctx.lineWidth = w * 0.03                     // line thickness
+        ctx.strokeStyle = c
+        ctx.lineWidth = w * 0.03
         ctx.stroke()
 
         ctx.beginPath()
@@ -129,7 +129,7 @@
         ctx.fillStyle = c
         ctx.fillRect(w / 2 - w * 0.05, h / 2 + h * 0.25, w * 0.1, h * 0.125)
 
-        ctx.fillStyle = "rgba(128, 64, 64, 1.0)";
+        ctx.fillStyle = "rgba(128, 64, 64, 1.0)"
         ctx.fillRect(w * 0.1, h * 0.24, w * 0.15, h * 0.16)
 
         ctx.beginPath()
@@ -160,7 +160,7 @@
         ctx.fillStyle = "rgba(64, 128, 64, 1.0)"
         ctx.globalCompositeOperation = "destination-out"
         ctx.beginPath()
-        ctx.arc(x, y, innerrad, 0, Math.PI * 2);
+        ctx.arc(x, y, innerrad, 0, Math.PI * 2)
         ctx.fill()
         ctx.beginPath()
         ctx.moveTo(x,y)
@@ -168,7 +168,7 @@
         ctx.lineTo(x + rad, y - rad)
         ctx.closePath()
         ctx.fill()
-        ctx.globalCompositeOperation = "source-over";
+        ctx.globalCompositeOperation = "source-over"
         ctx.fillStyle = "rgba(64, 128, 64, 1.0)"
         ctx.beginPath()
         ctx.moveTo(x + (unit / Math.sqrt(2)) , y - (unit / Math.sqrt(2)));
@@ -177,7 +177,6 @@
         ctx.closePath()
         ctx.fill()
     }
-
 
     const drawOverlay = (cnv) => {
 
@@ -221,10 +220,10 @@
             ctx.fill()
         }
 
-        const ctx = cnv.getContext("2d");
+        const ctx = cnv.getContext("2d")
         const w = cnv.width
         const h = cnv.height
-        ctx.clearRect(0, 0, event.target.width, event.target.height);
+        ctx.clearRect(0, 0, event.target.width, event.target.height)
         ctx.fillStyle = "rgba(255, 255, 255, 0.8)"
         ctx.fillRect(35 * (w / 40.0), 1 * (h / 40.0), 4 * (w / 40.0), 4 * (h / 40.0))
         ctx.clearRect(35.5 * (w / 40.0), 1.5 * (h / 40.0), 3 * (w / 40.0), 3 * (h / 40.0))
@@ -251,7 +250,7 @@
     }
 
     const drawOverlayOne = (cnv) => {
-        const ctx = cnv.getContext("2d");
+        const ctx = cnv.getContext("2d")
         ctx.fillStyle = "rgba(255, 255, 255, 0.8)"
         ctx.fillRect(38 * (cnv.width / 40.0), 1 * (cnv.height / 40.0), 1.5* (cnv.width / 40.0), 0.25 * (cnv.height / 40.0))
     }
@@ -337,7 +336,6 @@
 
     }
 
-
     const clickNine = (event) => {
         const w = event.target.width
         const h = event.target.height
@@ -399,6 +397,7 @@
     const mouseoverOne = (event) => {
         drawOverlayOne(event.target)
     }
+    
     const mouseoutOne = (event) => {
         const ctx = event.target.getContext("2d");
         ctx.clearRect(0, 0, event.target.width, event.target.height)
@@ -407,11 +406,13 @@
     const mouseoverNine = (event) => {
         drawOverlay(event.target)
     }
+    
     const mouseoutNine = (event) => {
         const ctx = event.target.getContext("2d");
         ctx.clearRect(0, 0, event.target.width, event.target.height)
     }
-    const testSerialize = () => {
+    
+    const getPalettesFile = () => {
         const downloadStringAsFile = (content, filename, mimeType = "text/plain")  => {
             const blob = new Blob([content], { type: mimeType })
             const url = URL.createObjectURL(blob)
@@ -424,18 +425,15 @@
 
             URL.revokeObjectURL(url)
         }
-        const CGPSerials = []
-        for (let x = 0; x < 9; x++) {
-            CGPSerials.push(theCGPs[x].serialize())
-        }
-        downloadStringAsFile(JSON.stringify(CGPSerials),"cgp.dat")
+        downloadStringAsFile(JSON.stringify(savedCGPs.slice(1)),"cgp-" + new Date().toISOString()  + ".dat")
     }
 
-    const getFile = (callback) => {
+    const loadPalettesFile= (callback) => {
+    
         const input = document.createElement('input')
         input.style.display = "none"
         input.type = 'file'
-        input.accept = '.dat' // optional: limit file types e.g. '.txt, .json'
+        input.accept = '.dat'
 
         input.onchange = () => {
             const file = input.files[0]
@@ -445,13 +443,18 @@
             reader.onload = () => callback(reader.result)
             reader.onerror = (err) => console.error("File read error:", err)
 
-            reader.readAsText(file) // or .readAsArrayBuffer, .readAsDataURL
-        };
-
-        // Trigger the file dialog
+            reader.readAsText(file)
+        }
         input.click()
     }
 
+    const restorePalette = (s) => {
+        const temps = JSON.parse(s)
+        for(let i = 0; i < 9; i++) {
+            savedCGPs[i+1] = temps[i]
+        }
+        localStorage.setItem("savedCGPs", JSON.stringify(savedCGPs))
+    }
 
     //Create the HTML body for the 9 tiles displays
     const setUpMainDisplayNine = () => {
@@ -468,10 +471,10 @@
         dis.innerHTML = '\n<div class="canvas-grid" id="cnv-grd"></div>\n';
         const grid = document.getElementById('cnv-grd');
         const saveCanvas = document.getElementById("saveCanvas")
-        saveCanvas.addEventListener("click", testSerialize)
+        saveCanvas.addEventListener("click", getPalettesFile)
         drawSave(saveCanvas)
         const loadCanvas = document.getElementById("loadCanvas")
-        loadCanvas.addEventListener("click", () => {getFile((contents) => {console.log(contents)})})
+        loadCanvas.addEventListener("click", () => {loadPalettesFile(restorePalette)})
         drawLoad(loadCanvas)
         const refreshCanvas = document.getElementById("refreshCanvas")
         refreshCanvas.addEventListener("click", ranomdizeAll)
@@ -506,7 +509,6 @@
         theCanv.addEventListener("click", clickOne)
 
     }
-
 
     const calcBPM = (sTm) => {
 
@@ -550,7 +552,6 @@
         }
     }
 
-
     const mapCGPtoWebGLContextSingle = (num) => {
         const canvas = document.getElementById("cnv-single");
         const thegl = canvas.getContext('webgl');
@@ -564,7 +565,6 @@
         setupGLContext(thegl, theProgram, canvas.width, canvas.height)
         initialized = true
     }
-
 
     const mapCGPsToWebGLContextandStartRender = () => {
         glContexts = []
@@ -680,6 +680,7 @@
         gl.clearColor(0, 0, 0, 1);
         gl.useProgram(program);
     }
+
     function render(gl, program) {
         gl.clear(gl.COLOR_BUFFER_BIT);
         const timeUniformLocation = gl.getUniformLocation(program, "time");
@@ -737,6 +738,7 @@
             requestAnimationFrame(renderOne)
         }
     }
+
     const mutateX = (x) => {
         if (initialized) {
             initialized = false
@@ -755,6 +757,7 @@
             initialized = true
         }
     }
+
     const gofullScreenX = (x) => {
         initialized = false
         renderMode = "One"
@@ -773,54 +776,67 @@
         renderNine()
     }
 
-    const audioContext = new (window.AudioContext || window.webkitAudioContext)()
-    const sRate = audioContext.sampleRate
+    const resumeIfSuspended = () => {
+        if (audioContext.state === 'suspended') {
+            audioContext.resume()
+        }
+    }
 
-    // Set up the AnalyserNode
-    const analyser = audioContext.createAnalyser()
-    analyser.fftSize = 1024 // Set FFT size (number of frequency bins)
-    const bufferLength = analyser.frequencyBinCount // Number of frequency bins
+    const setUpAudio = () => {
+        const audioContext = new (window.AudioContext || window.webkitAudioContext)()
+        const sRate = audioContext.sampleRate
 
-    // Create a buffer to hold the frequency data
-    const frequencyData = new Uint8Array(bufferLength)
+        // Set up the AnalyserNode
+        const analyser = audioContext.createAnalyser()
+        analyser.fftSize = 1024 // Set FFT size (number of frequency bins)
+        const bufferLength = analyser.frequencyBinCount // Number of frequency bins
 
-    // Get audio input (microphone or other input device)
-    navigator.mediaDevices.getUserMedia({ audio: true })
-        .then(stream => {
-            audioContext.audioWorklet.addModule('processor.js').then(() => {
-                const source = audioContext.createMediaStreamSource(stream)
-                source.connect(analyser); // Connect input to analyser nod
-                const audioWorkletNode = new AudioWorkletNode(audioContext, 'raw-audio-processor')
-                const lowPassFilter = audioContext.createBiquadFilter()
-                lowPassFilter.type = 'lowpass' // Set the filter type
-                lowPassFilter.frequency.value = 250 // Set the cutoff frequency (e.g., 1000 Hz)
-                lowPassFilter.Q.value = 10 // Set the quality factor (adjust as needed)
+        // Create a buffer to hold the frequency data
+        const frequencyData = new Uint8Array(bufferLength)
 
-                // Step 4: Connect nodes
-                source.connect(lowPassFilter)
+        // Get audio input (microphone or other input device)
+        navigator.mediaDevices.getUserMedia({ audio: true })
+            .then(stream => {
+                audioContext.audioWorklet.addModule('processor.js').then(() => {
+                    const source = audioContext.createMediaStreamSource(stream)
+                    source.connect(analyser); // Connect input to analyser nod
+                    const audioWorkletNode = new AudioWorkletNode(audioContext, 'raw-audio-processor')
+                    const lowPassFilter = audioContext.createBiquadFilter()
+                    lowPassFilter.type = 'lowpass' // Set the filter type
+                    lowPassFilter.frequency.value = 250 // Set the cutoff frequency (e.g., 1000 Hz)
+                    lowPassFilter.Q.value = 10 // Set the quality factor (adjust as needed)
+
+                    // Step 4: Connect nodes
+                    source.connect(lowPassFilter)
 
 
-                source.connect(audioWorkletNode)
-                audioWorkletNode.connect(audioContext.destination)
+                    source.connect(audioWorkletNode)
+                    audioWorkletNode.connect(audioContext.destination)
 
 
-                audioWorkletNode.port.onmessage = (event) => {
-                    const sample = event.data;
-                    samples.push(sample)
-                    sampleCount += 1
-                    if (sampleCount == 3000) {
-                        sampleCount = 0
-                        const samplesToMeasure = samples
-                        samples = []
-                        calcBPM(samplesToMeasure)
-                    }
-                };
+                    audioWorkletNode.port.onmessage = (event) => {
+                        const sample = event.data;
+                        samples.push(sample)
+                        sampleCount += 1
+                        if (sampleCount == 3000) {
+                            sampleCount = 0
+                            const samplesToMeasure = samples
+                            samples = []
+                            calcBPM(samplesToMeasure)
+                        }
+                    };
+                });
+            })
+            .catch(error => {
+                console.error("Error accessing audio input:", error)
             });
-        })
-        .catch(error => {
-            console.error("Error accessing audio input:", error)
-        });
-        
+            return [analyser, sRate, frequencyData, audioContext]
+        }   
+    
+    const [analyser, sRate, frequencyData, audioContext] = setUpAudio()
+
+    window.addEventListener('click', resumeIfSuspended, { once: true });
+    
     if ("savedCGPs" in localStorage) {
         savedCGPs = JSON.parse(localStorage.getItem("savedCGPs"))
     } else {
@@ -829,8 +845,11 @@
     }
     
     setUpMainDisplayNine()
+
     initializeRandomCGPs()
+
     mapCGPsToWebGLContextandStartRender()
+
     renderNine()
     
 </script>
