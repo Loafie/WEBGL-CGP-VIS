@@ -47,9 +47,19 @@
 <script type="module">
     import {CGP, defaultFuncs} from "./CGP.js"
     let glContexts = []
+    let glContextS1 = null
+    let glContextS2 = null
+    let lastSwitch = null
+    let currPlaying1 = null
+    let currPlaying2 = null
+    let activeSeqCanv = null
+    let S1Canv = null
+    let S2Canv = null
     let theCGPs = []
     let programs = []
     let initialized = false
+    let sPrograms1 = []
+    let sPrograms2 = []
     const standardCGP = () => {return new CGP(8, 3, 5, 10, 30, 4, defaultFuncs.length, defaultFuncs)}
     const currentLevels = [0.0, 0.0]
     const maxLevels = [0.0, 0.0]
@@ -176,6 +186,26 @@
         ctx.lineTo(x + 2.75 * (unit / Math.sqrt(2)), y - 0.75 * (unit / Math.sqrt(2)))
         ctx.closePath()
         ctx.fill()
+    }
+
+    const drawPlay = (cnv) => {
+        const c = "rgba(64, 64, 64, 1.0)"
+        const ctx = cnv.getContext("2d")
+        const w = cnv.width
+        const h = cnv.height
+        ctx.fillStyle = c
+        ctx.fillRect(0,0,w,h)
+        ctx.clearRect(0 + w * 0.03, 0 + h * 0.03, w * 0.94, h * 0.94)
+        ctx.beginPath()
+
+        ctx.fillStyle = "rgba(128, 128, 64, 1.0)"
+        ctx.beginPath()
+        ctx.moveTo(w * 0.3, h * 0.2)
+        ctx.lineTo(w * 0.8, h * 0.5)
+        ctx.lineTo(w * 0.3, h * 0.8)
+        ctx.closePath()
+        ctx.fill()
+
     }
 
     const drawOverlay = (cnv) => {
@@ -465,6 +495,7 @@
         '<div class="sidebar" style="position:relative;"><canvas id="saveCanvas" style="margin-bottom: 5px; cursor: pointer;" width="50" height="50"></canvas><br>' + 
         '<canvas id="loadCanvas" style="margin-bottom: 5px; cursor: pointer;" width="50" height="50"></canvas><br>' + 
         '<canvas id="refreshCanvas" style="margin-bottom: 5px; cursor: pointer;" width="50" height="50"></canvas>' + 
+        '<canvas id="playSequence" style="margin-bottom: 5px; cursor: pointer;" width="50" height="50"></canvas>' + 
         '<div id="savePalette" style="display: flex; gap: 0; padding: 0; margin: 0; flex-direction: column; align-items: center; margin-top: auto; width:50px; flex: 0 0 300px;background: #000000;"></div>' +
         '</div>'
         const dis = document.getElementById('main_display');
@@ -479,6 +510,9 @@
         const refreshCanvas = document.getElementById("refreshCanvas")
         refreshCanvas.addEventListener("click", ranomdizeAll)
         drawRefresh(refreshCanvas)
+        const playCanvas = document.getElementById("playSequence")
+        playCanvas.addEventListener("click", playSequence)
+        drawPlay(playCanvas)
         const paletteDiv = document.getElementById("savePalette")
         for (let i = 0; i < 10; i++) {
             paletteDiv.innerHTML += '<canvas id="paletteButton-' + i.toString() + '" width="30" height="28" style="background: #000000; cursor: pointer;"></canvas>'
@@ -501,8 +535,33 @@
     }
 
     const setUpMainDisplayOne = () => {
+
+        const w = Math.floor(window.innerWidth * 0.9)
+        const h = Math.floor(window.innerHeight * 0.9)
+        const shift = Math.floor((w - h) / 2.0)
+
         const bodycont = document.getElementById('body_container');
-        bodycont.innerHTML = '\n<div style="position: relative;"><canvas id="cnv-single" width="900" height="900"></canvas><canvas id="oc-single" width="900" height="900" style="position: absolute; top: 0; left: 0;"></canvas></div>\n'
+        bodycont.innerHTML = '\n<div style="position: relative; overflow: hidden; width:' + w.toString() + 'px; height: ' + h.toString() + 'px;">' +
+            '<canvas id="cnv-single" height="' + w.toString() + '" width="' + w.toString() + '" style="position: absolute; top: 0; left: 0; width: 100%; transform: translateY(-' + shift.toString() + 'px);"></canvas>' + 
+            '<canvas id="oc-single" width="' + w.toString() + '" height="' + h.toString() + '" style="position: absolute; top: 0; left: 0;"></canvas></div>\n'
+        const theCanv = document.getElementById("oc-single")
+        theCanv.addEventListener("mouseover", mouseoverOne)
+        theCanv.addEventListener("mouseout", mouseoutOne)
+        theCanv.addEventListener("click", clickOne)
+
+    }
+
+    const SetUpMainDisplaySequence = () => {
+        
+        const w = Math.floor(window.innerWidth * 0.9)
+        const h = Math.floor(window.innerHeight * 0.9)
+        const shift = Math.floor((w - h) / 2.0)
+
+        const bodycont = document.getElementById('body_container');
+        bodycont.innerHTML = '\n<div style="position: relative; overflow: hidden; width:' + w.toString() + 'px; height: ' + h.toString() + 'px;">' +
+            '<canvas id="cnv-first" height="' + w.toString() + '" width="' + w.toString() + '" style="opacity: 0.5; position: absolute; top: 0; left: 0; width: 100%; transform: translateY(-' + shift.toString() + 'px);"></canvas>' + 
+            '<canvas id="cnv-second" height="' + w.toString() + '" width="' + w.toString() + '" style="opacity: 0.5; position: absolute; top: 0; left: 0; width: 100%; transform: translateY(-' + shift.toString() + 'px);"></canvas>' + 
+            '<canvas id="oc-single" width="' + w.toString() + '" height="' + h.toString() + '" style="position: absolute; top: 0; left: 0;"></canvas></div>\n'
         const theCanv = document.getElementById("oc-single")
         theCanv.addEventListener("mouseover", mouseoverOne)
         theCanv.addEventListener("mouseout", mouseoutOne)
@@ -570,10 +629,10 @@
         glContexts = []
         programs = []
         for (let i = 0; i < 9; i++) {
-            const canvas = document.getElementById("cnv" + i);
-            const thegl = canvas.getContext('webgl');
+            const canvas = document.getElementById("cnv" + i)
+            const thegl = canvas.getContext('webgl')
             if (!thegl) {
-                console.error("WebGL not supported");
+                console.error("WebGL not supported")
             }
             glContexts.push(thegl)
             const theCGP = theCGPs[i]
@@ -582,6 +641,25 @@
             setupGLContext(thegl, theProgram, canvas.width, canvas.height)
         }
         initialized = true
+    }
+
+    const mapCGPstoWebGLContextSequence = () => {
+        sPrograms1 = []
+        sPrograms2 = []
+            const cnv1 = document.getElementById("cnv-first")
+            const cnv2 = document.getElementById("cnv-second")
+            S1Canv = cnv1
+            S2Canv = cnv2
+            console.log(cnv1.width, cnv1.height)
+            glContextS1 = cnv1.getContext('webgl')
+            glContextS2 = cnv2.getContext('webgl')
+        for (let i = 0; i < 9; i++) {
+            const prog1 = getProgram(glContextS1, theCGPs[i])
+            const prog2 = getProgram(glContextS2, theCGPs[i])
+            sPrograms1.push(prog1)
+            sPrograms2.push(prog2)
+        }
+
     }
 
     function getProgram(gl, theCGP) {
@@ -729,6 +807,55 @@
         }
     }
 
+    const switchSeq = () => {
+        if (activeSeqCanv == 1) {
+            setupGLContext(glContextS1, sPrograms1[(currPlaying2 + 1) % 9], S1Canv.width, S1Canv.width)
+            currPlaying1 = (currPlaying2 + 1) % 9
+            activeSeqCanv = 2
+            lastSwitch = Date.now()
+        }
+        else if (activeSeqCanv == 2) {
+            setupGLContext(glContextS2, sPrograms2[(currPlaying1 + 1) % 9], S2Canv.width, S2Canv.width)
+            currPlaying2 = (currPlaying1 + 1) % 9
+            activeSeqCanv = 1
+            lastSwitch = Date.now()
+        }
+    }
+
+    function renderSequence() {
+        if (initialized) {
+            updateAudioVec()
+            if (Date.now() - lastSwitch > 10000) {
+                switchSeq()
+            }
+            else if (Date.now() - lastSwitch > 8000) {
+                const scale = (Date.now() - lastSwitch - 8000) / 2000.0
+                if (activeSeqCanv == 1) {
+                    S1Canv.style.opacity = (1.0 - scale)
+                    S2Canv.style.opacity = (scale)
+                }
+                else
+                {
+                    S2Canv.style.opacity = (1.0 - scale)
+                    S1Canv.style.opacity = (scale)
+                }
+                render(glContextS1, sPrograms1[currPlaying1])
+                render(glContextS2, sPrograms2[currPlaying2])
+            }
+            else if (activeSeqCanv == 1) {
+                render(glContextS1, sPrograms1[currPlaying1])
+            }
+            else if (activeSeqCanv == 2)
+            {
+                render(glContextS2, sPrograms2[currPlaying2])
+            }
+        }
+        if (renderMode == 'Sequence') {
+            requestAnimationFrame(renderSequence)
+        }
+    }
+
+
     function renderOne() {
         if (initialized) {
             updateAudioVec()
@@ -765,6 +892,23 @@
         mapCGPtoWebGLContextSingle(x)
         initialized = true
         renderOne()       
+    }
+
+    const playSequence = () => {
+        const w = Math.floor(window.innerWidth * 0.9)
+        const h = Math.floor(window.innerHeight * 0.9)
+        initialized = false
+        renderMode = "Sequence"
+        SetUpMainDisplaySequence()
+        mapCGPstoWebGLContextSequence()
+        currPlaying1 = 0
+        currPlaying2 = 1
+        setupGLContext(glContextS1, sPrograms1[currPlaying1], S1Canv.width, S1Canv.width)
+        setupGLContext(glContextS2, sPrograms2[currPlaying2], S2Canv.width, S2Canv.width)
+        lastSwitch = Date.now()
+        activeSeqCanv = 1
+        initialized = true
+        renderSequence()
     }
 
     const returnFromFullScreen = () => {
