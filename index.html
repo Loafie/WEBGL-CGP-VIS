@@ -40,6 +40,7 @@
         display: flex;
         flex-direction: column;
         align-items: center;
+        padding: 0;
     }
   </style> 
 </head>
@@ -72,6 +73,7 @@
     let fullProg = null
     let renderMode = 'Nine'
     let savedCGPs = []
+    let defaultCGPs = []
     let currentBank = 1
 
     const drawSave = (cnv) => {
@@ -267,8 +269,8 @@
             const saveColorI = "rgba(127, 127, 255, 0.3)"
             const loadColorD = "rgba(170, 170, 0, 0.8)"
             if (currentBank != 0) {
-                drawTriangle(x * w/10, h * (7/8), w/12, (savedCGPs[currentBank][x - 1] != null) ? loadColorA : loadColorI)
-                drawTriangle(x * w/10, h * (15/16), w/12, (savedCGPs[currentBank][x - 1] != null) ? saveColorA : saveColorI, true)
+                drawTriangle(x * w/10, h * (7/8), w/12, (savedCGPs[currentBank - 1][x - 1] != null) ? loadColorA : loadColorI)
+                drawTriangle(x * w/10, h * (15/16), w/12, (savedCGPs[currentBank - 1][x - 1] != null) ? saveColorA : saveColorI, true)
             }
             else
             {
@@ -322,7 +324,7 @@
     }
 
     const saveState = (n, k) => {
-        savedCGPs[currentBank][n] = theCGPs[k].serialize()
+        savedCGPs[currentBank-1][n] = theCGPs[k].serialize()
         localStorage.setItem("savedCGPs", JSON.stringify(savedCGPs))
 
     }
@@ -344,7 +346,12 @@
     const loadState = (n, k) => {
         if (initialized) {
             initialized = false
-            theCGPs[k].fromSerialization(savedCGPs[currentBank][n])
+            if (currentBank != 0) {
+                theCGPs[k].fromSerialization(savedCGPs[currentBank-1][n])
+            }
+            else {
+                theCGPs[k].fromSerialization(defaultCGPs[n])
+            }
             programs[k] = getProgram(glContexts[k], theCGPs[k])
             glContexts[k].useProgram(programs[k])
             initialized = true
@@ -390,7 +397,10 @@
                 }
                 drawOverlay(event.target)
              } else {
-                if (savedCGPs[currentBank][bank] != null) {
+                if (currentBank != 0 && savedCGPs[currentBank][bank] != null) {
+                    loadState(bank, parseInt(event.target.id.replace("oc","")))
+                }
+                else if (currentBank == 0) {
                     loadState(bank, parseInt(event.target.id.replace("oc","")))
                 }
              }
@@ -458,7 +468,7 @@
         downloadStringAsFile(JSON.stringify(savedCGPs.slice(1)),"cgp-" + new Date().toISOString()  + ".dat")
     }
 
-    const loadPalettesFile= (callback) => {
+    const loadPalettesFile = (callback) => {
     
         const input = document.createElement('input')
         input.style.display = "none"
@@ -492,8 +502,9 @@
         bodycont.innerHTML = '<div class="main-wrapper" id="wrapper"></div>'
         const wrap = document.getElementById('wrapper');
         wrap.innerHTML = '<div class="container" id="main_display"></div>' + 
-        '<div class="sidebar" style="position:relative;"><canvas id="saveCanvas" style="margin-bottom: 5px; cursor: pointer;" width="50" height="50"></canvas><br>' + 
-        '<canvas id="loadCanvas" style="margin-bottom: 5px; cursor: pointer;" width="50" height="50"></canvas><br>' + 
+        '<div class="sidebar" style="position:relative;">' +
+        '<canvas id="saveCanvas" style="margin-bottom: 5px; cursor: pointer;" width="50" height="50"></canvas>' + 
+        '<canvas id="loadCanvas" style="margin-bottom: 5px; cursor: pointer;" width="50" height="50"></canvas>' + 
         '<canvas id="refreshCanvas" style="margin-bottom: 5px; cursor: pointer;" width="50" height="50"></canvas>' + 
         '<canvas id="playSequence" style="margin-bottom: 5px; cursor: pointer;" width="50" height="50"></canvas>' + 
         '<div id="savePalette" style="display: flex; gap: 0; padding: 0; margin: 0; flex-direction: column; align-items: center; margin-top: auto; width:50px; flex: 0 0 300px;background: #000000;"></div>' +
@@ -650,7 +661,6 @@
             const cnv2 = document.getElementById("cnv-second")
             S1Canv = cnv1
             S2Canv = cnv2
-            console.log(cnv1.width, cnv1.height)
             glContextS1 = cnv1.getContext('webgl')
             glContextS2 = cnv2.getContext('webgl')
         for (let i = 0; i < 9; i++) {
@@ -825,11 +835,11 @@
     function renderSequence() {
         if (initialized) {
             updateAudioVec()
-            if (Date.now() - lastSwitch > 10000) {
+            if (Date.now() - lastSwitch > 60000) {
                 switchSeq()
             }
-            else if (Date.now() - lastSwitch > 8000) {
-                const scale = (Date.now() - lastSwitch - 8000) / 2000.0
+            else if (Date.now() - lastSwitch > 56000) {
+                const scale = (Date.now() - lastSwitch - 56000) / 4000.0
                 if (activeSeqCanv == 1) {
                     S1Canv.style.opacity = (1.0 - scale)
                     S2Canv.style.opacity = (scale)
@@ -980,6 +990,16 @@
     const [analyser, sRate, frequencyData, audioContext] = setUpAudio()
 
     window.addEventListener('click', resumeIfSuspended, { once: true });
+
+    fetch('./default.dat')
+      .then(resp => {
+        if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+        return resp.text();
+      })
+      .then(text => {
+        defaultCGPs = JSON.parse(text);
+      })
+      .catch(err => console.error(err));
     
     if ("savedCGPs" in localStorage) {
         savedCGPs = JSON.parse(localStorage.getItem("savedCGPs"))
